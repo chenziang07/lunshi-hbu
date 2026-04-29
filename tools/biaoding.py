@@ -10,13 +10,21 @@ import time
 import curses
 import json
 import os
+import sys
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DRIVERS_DIR = os.path.join(PROJECT_DIR, "drivers")
+if DRIVERS_DIR not in sys.path:
+    sys.path.insert(0, DRIVERS_DIR)
+
 import uptech
 
 # ==================== 配置 ====================
 # AD5:左上(前左)  AD8:右上(前右)  AD6:左下(后左)  AD7:右下(后右)
 GRAY_CHANNELS = [5, 8, 6, 7]               # 前左, 前右, 后左, 后右
 SENSOR_NAMES = ['前左(AD5)', '前右(AD8)', '后左(AD6)', '后右(AD7)']
-CALIB_FILE = "gray_calibration.json"
+CALIB_FILE = os.path.join(PROJECT_DIR, "gray_calibration.json")
+DATA_CALIB_FILE = os.path.join(PROJECT_DIR, "data", "gray_calibration.json")
 
 WHITE = [0, 0, 0, 0]
 BLACK = [0, 0, 0, 0]
@@ -25,16 +33,20 @@ BLACK = [0, 0, 0, 0]
 def save_calibration():
     data = {"white": WHITE, "black": BLACK, "channels": GRAY_CHANNELS}
     try:
+        os.makedirs(os.path.dirname(DATA_CALIB_FILE), exist_ok=True)
         with open(CALIB_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+        with open(DATA_CALIB_FILE, 'w') as f:
             json.dump(data, f, indent=2)
     except Exception:
         pass
 
 def load_calibration():
-    if not os.path.exists(CALIB_FILE):
+    calib_file = CALIB_FILE if os.path.exists(CALIB_FILE) else DATA_CALIB_FILE
+    if not os.path.exists(calib_file):
         return False
     try:
-        with open(CALIB_FILE, 'r') as f:
+        with open(calib_file, 'r') as f:
             data = json.load(f)
         if data.get("channels") == GRAY_CHANNELS:
             for i in range(4):

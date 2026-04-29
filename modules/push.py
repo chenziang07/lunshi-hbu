@@ -11,6 +11,12 @@ def push_block(robot, vision, read_gray, read_photo):
 
     pushed_once = False   # 是否已经触发一次推出
 
+    target_ids = [0]
+    if PUSH_ID_1:
+        target_ids.append(1)
+    if PUSH_ID_2:
+        target_ids.append(2)
+
     def ramp(c, t):
         if c < t:
             return min(c + RAMP_STEP, t)
@@ -25,7 +31,7 @@ def push_block(robot, vision, read_gray, read_photo):
         tag = vision.get()
 
         # ================= 目标锁定 =================
-        if tag and tag["id"] in [0, 1]:
+        if tag and tag["id"] in target_ids:
 
             lost_count = 0
 

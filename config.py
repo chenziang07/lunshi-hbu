@@ -1,6 +1,13 @@
 # config.py
 
 MAX_SPEED = 1023
+DEBUG = False
+
+# ==================== 电机方向 ====================
+MOTOR_LEFT_ID = 1
+MOTOR_RIGHT_ID = 2
+MOTOR_LEFT_SIGN = 1
+MOTOR_RIGHT_SIGN = 1
 
 # ==================== 巡台 ====================
 DANGER_THRESHOLD = 0.65   # 越小越保守

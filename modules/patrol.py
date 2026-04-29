@@ -1,93 +1,72 @@
 # modules/patrol.py
 
 import time
-from config import *
+
+from config import DEBUG
 from modules.sensors import read_gray
 
-class Patrol:
 
+class Patrol:
     def __init__(self, robot):
         self.robot = robot
-        self.l = 0
-        self.r = 0
 
-        # 状态机
-        self.STATE_NORMAL = 0
-        self.STATE_ESCAPE = 1
-        self.state = self.STATE_NORMAL
-        self.escape_start = 0
+        self.STATE_FORWARD = 0
+        self.STATE_RETREAT = 1
+        self.STATE_TURN = 2
 
-    # ================== 线性加速 ==================
-    def ramp(self, cur, target):
-        if cur < target:
-            return min(cur + ACC_STEP, target)
-        return max(cur - ACC_STEP, target)
+        self.state = self.STATE_FORWARD
+        self.turn_start = 0
 
-    # ================== 主逻辑 ==================
+        self.turn_duration = 0.3
+        self.center_threshold = 0.25
+        self.last_left = 0
+        self.last_right = 0
+        self.last_print = 0
+
+    def smooth(self, left, right):
+        left = int(0.7 * self.last_left + 0.3 * left)
+        right = int(0.7 * self.last_right + 0.3 * right)
+        self.last_left = left
+        self.last_right = right
+        return left, right
+
+    def is_center_safe(self, norm):
+        return all(v < self.center_threshold for v in norm)
+
     def step(self):
-
         norm, _ = read_gray(self.robot)
-
-        front = (norm[0] + norm[1]) / 2
-        back  = (norm[2] + norm[3]) / 2
-        left  = (norm[0] + norm[2]) / 2
-        right = (norm[1] + norm[3]) / 2
-
         max_val = max(norm)
 
-        # ==================  极限掉台保护 ==================
         if all(v > 0.85 for v in norm):
-            self.state = self.STATE_ESCAPE
-            self.escape_start = time.time()
+            front_avg = (norm[0] + norm[1]) / 2
+            left = 800 if front_avg < 0.5 else 400
+            right = 800 if front_avg < 0.5 else -400
+            self.state = self.STATE_FORWARD
+            left, right = self.smooth(left, right)
+            self.robot.set_speed(left, right)
+            return
 
-        # ================== 状态机：强制脱离 ==================
-        if self.state == self.STATE_ESCAPE:
+        if self.state == self.STATE_FORWARD:
+            left = 600
+            right = 600
+            if max_val > 0.5:
+                self.state = self.STATE_RETREAT
 
-            # 后退 + 偏转
-            l = -800
-            r = -800
+        elif self.state == self.STATE_RETREAT:
+            left = -700
+            right = -700
+            if self.is_center_safe(norm):
+                self.state = self.STATE_TURN
+                self.turn_start = time.time()
 
-            if left > right:
-                l -= 200
-            else:
-                r -= 200
-
-            # 脱离后恢复
-            if time.time() - self.escape_start > 0.4:
-                self.state = self.STATE_NORMAL
-
-        # ================== 正常巡航 ==================
         else:
+            left = 500
+            right = -500
+            if time.time() - self.turn_start > self.turn_duration:
+                self.state = self.STATE_FORWARD
 
-            # ==================  连续控制 ==================
-            error = norm[0] - norm[1]
-
-            base_speed = 600
-
-            # ==================  提前掉台预测 ==================
-            if max_val > DANGER_THRESHOLD:
-
-                # 减速
-                base_speed = 250
-
-                # 转向（远离危险侧）
-                if left > right:
-                    error += 0.5
-                else:
-                    error -= 0.5
-
-            # ================== 动态转向 ==================
-            l = base_speed - STEER_GAIN * error
-            r = base_speed + STEER_GAIN * error
-
-            # ==================  后方危险补偿 ==================
-            if back > 0.7:
-                l += 100
-                r += 100
-
-        # ================== 线性加速 ==================
-        self.l = self.ramp(self.l, l)
-        self.r = self.ramp(self.r, r)
-
-        # ================== 输出 ==================
-        self.robot.set_speed(self.l, self.r)
+        left, right = self.smooth(left, right)
+        if DEBUG and time.time() - self.last_print > 0.2:
+            print("patrol:", self.state, "gray:", norm, "cmd:", left, right)
+            self.last_print = time.time()
+        self.robot.set_speed(left, right)
