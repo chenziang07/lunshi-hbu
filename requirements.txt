@@ -1,0 +1,11 @@
+# 核心依赖
+opencv-contrib-python>=4.5.0
+numpy>=1.19.0
+apriltag>=0.0.16
+
+# 硬件接口
+pigpio>=1.78
+pyserial>=3.5
+
+# 可选（如果需要更快的 AprilTag）
+# apriltag-pybind  # C++ 绑定版本，更快但安装复杂

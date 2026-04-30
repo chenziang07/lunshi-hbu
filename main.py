@@ -1,6 +1,8 @@
 import time
 import os
 import sys
+import signal
+import atexit
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DRIVERS_DIR = os.path.join(BASE_DIR, "drivers")
@@ -33,33 +35,59 @@ class Robot:
         self.up.CDS_SetMode(MOTOR_LEFT_ID, 1)
         self.up.CDS_SetMode(MOTOR_RIGHT_ID, 1)
         self.last_print = 0
+        self._stopped = False
 
     def set_speed(self, left_speed, right_speed):
+        if self._stopped:
+            return
         left = MOTOR_LEFT_SIGN * int(left_speed)
         right = MOTOR_RIGHT_SIGN * int(right_speed)
         if DEBUG and time.time() - self.last_print > 0.2:
             print("speed:", left, right)
             self.last_print = time.time()
-        self.up.CDS_SetSpeed(MOTOR_LEFT_ID, left)
-        self.up.CDS_SetSpeed(MOTOR_RIGHT_ID, right)
+        try:
+            self.up.CDS_SetSpeed(MOTOR_LEFT_ID, left)
+            self.up.CDS_SetSpeed(MOTOR_RIGHT_ID, right)
+        except Exception as e:
+            print(f"ERROR: set_speed failed: {e}")
+            self.stop()
 
     def read_adc(self):
-        return self.up.ADC_Get_All_Channle()
+        try:
+            return self.up.ADC_Get_All_Channle()
+        except Exception as e:
+            print(f"ERROR: read_adc failed: {e}")
+            self.stop()
+            return [0] * 8
 
     def read_io(self):
-        io_all_input = self.up.ADC_IO_GetAllInputLevel()
-        if io_all_input < 0:
+        try:
+            io_all_input = self.up.ADC_IO_GetAllInputLevel()
+            if io_all_input < 0:
+                return [1] * 8
+
+            io_array = "{:08b}".format(io_all_input)
+            io_data = []
+            for value in io_array:
+                io_data.insert(0, int(value))
+            return io_data
+        except Exception as e:
+            print(f"ERROR: read_io failed: {e}")
+            self.stop()
             return [1] * 8
 
-        io_array = "{:08b}".format(io_all_input)
-        io_data = []
-        for value in io_array:
-            io_data.insert(0, int(value))
-        return io_data
-
     def stop(self):
-        self.set_speed(0, 0)
-        self.up.CDS_Close()
+        if self._stopped:
+            return
+        self._stopped = True
+        try:
+            self.up.CDS_SetSpeed(MOTOR_LEFT_ID, 0)
+            self.up.CDS_SetSpeed(MOTOR_RIGHT_ID, 0)
+            time.sleep(0.05)
+            self.up.CDS_Close()
+            print("INFO: Robot stopped")
+        except Exception as e:
+            print(f"ERROR: stop failed: {e}")
 
 
 def select_target(tag):
@@ -83,23 +111,44 @@ def main():
 
     # ===== 初始化 =====
     robot = Robot()
-    load_gray()
+    vision = None
 
-    vision = Vision()
-    vision.start()
+    def cleanup(signum=None, frame=None):
+        """清理资源"""
+        print("\nINFO: Cleaning up resources...")
+        if robot:
+            robot.stop()
+        if vision:
+            vision.stop()
+        if signum == signal.SIGTSTP:
+            print("WARN: Ctrl+Z detected - resources cleaned, process will suspend")
+        sys.exit(0)
 
-    patrol = Patrol(robot)
+    # 注册信号处理器
+    signal.signal(signal.SIGINT, cleanup)   # Ctrl+C
+    if hasattr(signal, 'SIGTSTP'):
+        signal.signal(signal.SIGTSTP, cleanup)  # Ctrl+Z (Unix only)
 
-    MODE_PATROL = 0
-    MODE_PUSH = 1
-
-    mode = MODE_PATROL
-
-    # ===== 防抖计数 =====
-    lock_count = 0
-    target_id = None
+    # 注册退出处理器（备用）
+    atexit.register(lambda: cleanup())
 
     try:
+        load_gray()
+
+        vision = Vision()
+        vision.start()
+
+        patrol = Patrol(robot)
+
+        MODE_PATROL = 0
+        MODE_PUSH = 1
+
+        mode = MODE_PATROL
+
+        # ===== 防抖计数 =====
+        lock_count = 0
+        target_id = None
+
         # ===== 主循环 =====
         while True:
 
@@ -131,11 +180,15 @@ def main():
             time.sleep(0.02)
 
     except KeyboardInterrupt:
-        print("exit")
+        print("\nINFO: KeyboardInterrupt received")
+
+    except Exception as e:
+        print(f"\nERROR: Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
 
     finally:
-        robot.stop()
-        vision.stop()
+        cleanup()
 
 
 if __name__ == "__main__":

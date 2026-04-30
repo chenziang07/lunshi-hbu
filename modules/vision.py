@@ -3,13 +3,26 @@ import time
 import cv2
 import platform
 import os
+import numpy as np
 from perception.apriltag_detect import ApriltagDetect
+from config import (CAMERA_WIDTH, CAMERA_HEIGHT, APRILTAG_SIZE,
+                    CAMERA_FX, CAMERA_FY, CAMERA_CX, CAMERA_CY)
 
 
 class Vision:
 
     def __init__(self, camera_device=None):
-        self.detector = ApriltagDetect()
+        # 构建相机内参矩阵
+        camera_matrix = np.array([
+            [CAMERA_FX, 0, CAMERA_CX],
+            [0, CAMERA_FY, CAMERA_CY],
+            [0, 0, 1]
+        ], dtype=np.float32)
+
+        self.detector = ApriltagDetect(
+            tag_size=APRILTAG_SIZE,
+            camera_matrix=camera_matrix
+        )
         self.lock = threading.Lock()
         self.running = False
         self.thread = None
@@ -54,8 +67,8 @@ class Vision:
             device_str = self._camera_device
 
         if self._cap.isOpened():
-            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
             self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self._camera_ok = True
             print(f"INFO: camera {device_str} opened successfully")

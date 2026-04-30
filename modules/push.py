@@ -6,6 +6,7 @@ def push_block(robot, vision, read_gray, read_photo):
     cl, cr = 0, 0
     start_time = time.time()
     lost_count = 0
+    last_print_time = 0
 
     l0, r0 = read_photo(robot)
 
@@ -38,11 +39,16 @@ def push_block(robot, vision, read_gray, read_photo):
             err = tag["cx"]
             dist = tag["distance"]
 
-            # 近距离冲刺
+            # 每 0.2 秒打印一次距离信息
+            if time.time() - last_print_time > 0.2:
+                print(f"[PUSH] Tag ID: {tag['id']}, Distance: {dist:.3f}m, Center X: {err:.3f}")
+                last_print_time = time.time()
+
+            # 距离速度映射（确保最小速度400）
             if dist < 0.25:
                 base = MAX_SPEED
             else:
-                base = max(MIN_SPEED, min(MAX_SPEED, KP_DIST * dist))
+                base = max(400, min(MAX_SPEED, int(KP_DIST * dist * 100)))
 
             turn = KP_ANGLE * err * 400
 
@@ -53,13 +59,24 @@ def push_block(robot, vision, read_gray, read_photo):
                 break
 
             turn = 0
-            base = MIN_SPEED
+            base = 400
 
         # ================= 灰度防掉台 =================
-        norm, _ = read_gray(robot)
+        try:
+            norm, _ = read_gray(robot)
+        except Exception as e:
+            print(f"ERROR: read_gray failed in push: {e}")
+            robot.set_speed(0, 0)
+            break
+
+        # 安全检查：传感器异常时停止
+        if all(v == 0 for v in norm) or any(v < 0 or v > 1.1 for v in norm):
+            print("WARN: abnormal sensor readings in push, stopping:", norm)
+            robot.set_speed(0, 0)
+            break
 
         if max(norm) > 0.7:
-            base = min(base, 200)
+            base = min(base, 400)
 
         # 极限保护（防自杀）
         if max(norm) > 0.85:
@@ -79,27 +96,17 @@ def push_block(robot, vision, read_gray, read_photo):
         # ================= 推出判定 =================
         l, r = read_photo(robot)
 
-        if PUSH_REQUIRE_BOTH:
-            pushed = (l == PHOTO_EMPTY_VALUE and r == PHOTO_EMPTY_VALUE)
-        else:
-            pushed = (l == PHOTO_EMPTY_VALUE or r == PHOTO_EMPTY_VALUE)
-
-        if PUSH_USE_TRANSITION:
-            pushed = pushed and (l0 == PHOTO_BLOCK_VALUE or r0 == PHOTO_BLOCK_VALUE)
+        # 光电传感器：0=有东西（未推下去），1=悬空（推下去了）
+        # 判断：至少有一个变成1才算推下去
+        pushed = (l == 1 or r == 1)
 
         if pushed:
             time.sleep(PUSH_CONFIRM_DELAY)
 
             l2, r2 = read_photo(robot)
 
-            if l2 == PHOTO_EMPTY_VALUE and r2 == PHOTO_EMPTY_VALUE:
-
-                #  新增：二次补推
-                if not pushed_once:
-                    pushed_once = True
-                    robot.set_speed(MAX_SPEED, MAX_SPEED)
-                    time.sleep(0.2)
-                    continue   # 再检测一次
+            # 二次确认：至少有一个还是1
+            if l2 == 1 or r2 == 1:
 
                 # ================= 收尾 =================
 
@@ -107,15 +114,16 @@ def push_block(robot, vision, read_gray, read_photo):
                 robot.set_speed(600, 600)
                 time.sleep(0.15)
 
-                # 后退脱离
+                # 后退脱离，回到台中心
                 robot.set_speed(-800, -800)
-                time.sleep(0.35)
+                time.sleep(0.5)
 
                 # 回正
                 robot.set_speed(500, -500)
                 time.sleep(0.2)
 
-                break
+                robot.set_speed(0, 0)
+                return  # 退出push函数，继续巡台
 
         time.sleep(0.01)
 
