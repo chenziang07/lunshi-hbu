@@ -8,7 +8,7 @@
 - 🚀 **线性加速控制**：平滑的运动控制，避免电机冲击
 - 🛡️ **多重安全保护**：灰度传感器防掉台 + 超时保护
 - 📏 **实时距离显示**：控制台实时打印目标距离和偏移
-- 🔧 **完善的标定工具**：提供简易和完整两种相机标定方案
+- 🔧 **简易标定工具**：5 分钟快速完成相机焦距标定
 - 🔄 **自动返回巡台**：推块完成后自动返回台中心继续巡逻
 
 ## 📋 系统要求
@@ -36,23 +36,14 @@ pip install opencv-python numpy apriltag
 
 ### 2. 相机标定（首次使用）
 
-#### 方法一：简易焦距标定 ⭐ 推荐（5 分钟）
 ```bash
-python calibrate_focal_length.py
+python tools/calibrate_focal_length.py
 ```
+
 - 只需要 AprilTag 和尺子
 - 在不同距离测量 3-5 次
 - 自动更新配置文件
-
-#### 方法二：完整相机标定（15-20 分钟）
-```bash
-python calibrate_camera.py
-```
-- 需要打印 9x6 棋盘格标定板
-- 采集 15 张不同角度的图片
-- 获得最高精度和畸变校正
-
-详细说明请查看 [CAMERA_CALIBRATION.md](CAMERA_CALIBRATION.md)
+- 5 分钟快速完成
 
 ### 3. 配置参数
 
@@ -93,8 +84,6 @@ lunshi4.30/
 ├── main.py                      # 主程序入口
 ├── config.py                    # 全局配置文件
 ├── README.md                    # 项目说明
-├── CAMERA_CALIBRATION.md        # 相机标定指南
-├── TROUBLESHOOTING.md           # 故障排查文档
 │
 ├── drivers/                     # 硬件驱动层
 │   ├── uptech.py               # UpTech 主控板驱动
@@ -111,13 +100,9 @@ lunshi4.30/
 ├── perception/                  # 视觉感知
 │   └── apriltag_detect.py      # AprilTag 检测（PnP 距离测量）
 │
-├── tools/                       # 工具脚本
-│   └── biaoding.py             # 标定工具
-│
-└── 标定工具/
-    ├── calibrate_camera.py      # 完整相机标定
+└── tools/                       # 工具脚本
     ├── calibrate_focal_length.py # 简易焦距标定
-    └── cleanup_camera.py        # 相机清理工具
+    └── cleanup_camera.py        # 相机进程清理
 ```
 
 ## 🎯 工作流程
@@ -206,7 +191,7 @@ lunshi4.30/
 - AprilTag 尺寸设置错误
 
 **解决方法**：
-- 运行 `python calibrate_focal_length.py` 重新标定
+- 运行 `python tools/calibrate_focal_length.py` 重新标定
 - 用尺子测量 AprilTag 黑色方块边长，更新 `APRILTAG_SIZE`
 
 更多问题请查看 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
@@ -220,7 +205,7 @@ lunshi4.30/
 - ✅ **线性加速控制**：巡台时平滑加速，避免电机冲击
 - ✅ **实时距离显示**：推块时每 0.2 秒打印距离和偏移
 - ✅ **简易焦距标定工具**：5 分钟快速标定，自动更新配置
-- ✅ **完整相机标定工具**：支持棋盘格标定，获得最高精度
+- ✅ **相机进程清理工具**：一键清理卡住的相机进程
 
 #### 🔧 优化改进
 - ✅ 修复推块速度过低导致电机不转的问题（最小速度 150 → 400）

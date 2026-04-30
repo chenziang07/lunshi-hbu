@@ -17,7 +17,7 @@ class Patrol:
         self.state = self.STATE_FORWARD
         self.turn_start = 0
 
-        self.turn_duration = 0.2
+        self.turn_duration = 0.1  # 缩短转向时间，加快巡台速度
         self.center_threshold = 0.35
         self.last_left = 0
         self.last_right = 0
