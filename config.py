@@ -11,11 +11,10 @@ CAMERA_HEIGHT = 240  # 树莓派建议 240，性能好的设备可用 480
 APRILTAG_SIZE = 0.12  # 12cm
 
 # 相机内参（根据实际相机标定结果修改）
-# 默认值是 320x240 分辨率的估算值
-CAMERA_FX = 200.0  # 焦距 x
-CAMERA_FY = 200.0  # 焦距 y
-CAMERA_CX = 160.0  # 光心 x
-CAMERA_CY = 120.0  # 光心 y
+CAMERA_FX = 320.0  # 焦距 x
+CAMERA_FY = 320.0  # 焦距 y
+CAMERA_CX = 160.0  # 光心 x (320/2)
+CAMERA_CY = 120.0  # 光心 y (240/2)
 
 # ==================== 电机方向 ====================
 MOTOR_LEFT_ID = 1
@@ -50,8 +49,9 @@ GRAY_CHANNELS = [5, 8, 6, 7]
 
 # ==================== 推块目标策略 ====================
 
-PUSH_ID_1 = True
-PUSH_ID_2 = False
+PUSH_ID_1 = True  # 推 ID=1 的块
+PUSH_ID_2 = False  # 不推 ID=2 的块
+# 注意：ID=0 总是会被推
 
 PRIORITY_MODE = True
 
