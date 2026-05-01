@@ -125,8 +125,8 @@ def push_block(robot, vision, read_gray, read_photo):
                 # ================= 收尾 =================
 
                 # 冲一下（确保掉）
-                robot.set_speed(600, 600)
-                time.sleep(0.15)
+                robot.set_speed(400, 400)
+                time.sleep(0.1)
 
                 # 后退脱离，回到台中心
                 robot.set_speed(-800, -800)

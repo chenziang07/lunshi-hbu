@@ -167,10 +167,16 @@ def main():
             print(f"图像中宽度: {tag_width_px:.2f} 像素")
             print()
 
+            # 关闭 OpenCV 窗口，避免与 input() 冲突
+            cv2.destroyAllWindows()
+
             # 输入实际距离
             while True:
                 try:
                     distance_input = input("请输入 AprilTag 到相机镜头的实际距离（单位：厘米）: ").strip()
+                    if not distance_input:
+                        print("错误：请输入距离")
+                        continue
                     distance_cm = float(distance_input)
                     if distance_cm <= 0:
                         print("错误：距离必须大于 0")
@@ -179,6 +185,11 @@ def main():
                     break
                 except ValueError:
                     print("错误：请输入有效的数字")
+                except KeyboardInterrupt:
+                    print("\n用户取消输入")
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return
 
             # 计算焦距
             focal_length = calculate_focal_length(APRILTAG_SIZE, distance_m, tag_width_px)
@@ -197,6 +208,8 @@ def main():
             print("提示：建议在不同距离（如 20cm, 30cm, 50cm）测量 3-5 次取平均值")
             print("按 [空格] 继续测量，按 [q] 完成标定")
             print("-" * 60)
+            print()
+            print("摄像头窗口已重新打开...")
 
         # 按 q 退出
         elif key == ord('q'):

@@ -16,8 +16,10 @@ class Patrol:
 
         self.state = self.STATE_FORWARD
         self.turn_start = 0
+        self.forward_start = 0  # 记录前进开始时间
 
-        self.turn_duration = 0.1  # 缩短转向时间，加快巡台速度
+        self.turn_duration = 0.1  # 转向时间
+        self.forward_duration = 0.3  # 转向后前进时间（保守策略）
         self.center_threshold = 0.35
         self.last_left = 0
         self.last_right = 0
@@ -75,8 +77,15 @@ class Patrol:
             speed = self.ramp_speed(self.target_speed)
             left = speed
             right = speed
+
+            # 检测到边缘时后退
             if max_val > 0.5:
                 self.state = self.STATE_RETREAT
+                self.current_speed = 0
+            # 保守策略：前进一小段时间后停下来，给视觉系统检测机会
+            elif time.time() - self.forward_start > self.forward_duration:
+                left = 0
+                right = 0
                 self.current_speed = 0
 
         elif self.state == self.STATE_RETREAT:
@@ -87,12 +96,13 @@ class Patrol:
                 self.state = self.STATE_TURN
                 self.turn_start = time.time()
 
-        else:
+        else:  # STATE_TURN
             left = 500
             right = -500
             self.current_speed = 0
             if time.time() - self.turn_start > self.turn_duration:
                 self.state = self.STATE_FORWARD
+                self.forward_start = time.time()  # 记录前进开始时间
 
         left, right = self.smooth(left, right)
         if DEBUG and time.time() - self.last_print > 0.2:
