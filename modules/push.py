@@ -1,5 +1,6 @@
 import time
 from config import *
+from config import PATROL_SAFE_ZONE_THRESHOLD
 
 def push_block(robot, vision, read_gray, read_photo):
 
@@ -117,40 +118,110 @@ def push_block(robot, vision, read_gray, read_photo):
             if lost_duration > LOST_TOLERANCE:
                 print(f"[PUSH] Target lost for {lost_duration:.1f}s, attempting recovery...")
 
-                # 后退
-                robot.set_speed(-LOST_RETREAT_SPEED, -LOST_RETREAT_SPEED)
-                time.sleep(LOST_RETREAT_TIME)
+                # 1. 低速后退0.2秒
+                robot.set_speed(-400, -400)
+                time.sleep(0.2)
                 robot.set_speed(0, 0)
                 time.sleep(0.1)
 
-                # 根据最后已知的水平偏移量决定转向方向
-                # cx > 0 表示目标在右边，需要右转；cx < 0 表示目标在左边，需要左转
-                if abs(last_known_cx) > 0.05:  # 如果偏移量明显
-                    turn_direction = "right" if last_known_cx > 0 else "left"
-                    turn_speed = 500
-                    turn_time = 0.3
+                # 2. 读取灰度值，判断是否朝向安全区域
+                try:
+                    norm, _ = read_gray(robot)
+                except Exception as e:
+                    print(f"ERROR: read_gray failed during recovery: {e}")
+                    robot.set_speed(0, 0)
+                    return
 
-                    if turn_direction == "right":
-                        print(f"[PUSH] Turning right to recover target (last cx={last_known_cx:.3f})")
-                        robot.set_speed(turn_speed, -turn_speed)
+                max_danger = max(norm)
+                print(f"[PUSH] After retreat, danger values: {norm}, max={max_danger:.2f}")
+
+                # 3. 如果不在安全区域（危险值 >= PATROL_SAFE_ZONE_THRESHOLD），分析灰度并转向安全方向
+                if max_danger >= PATROL_SAFE_ZONE_THRESHOLD:
+                    print("[PUSH] Not facing safe zone, analyzing gray values to turn towards center...")
+
+                    # 分析前后灰度值，找到最安全的方向
+                    # norm[0]=左前, norm[1]=右前, norm[2]=左后, norm[3]=右后
+                    front_avg = (norm[0] + norm[1]) / 2
+                    back_avg = (norm[2] + norm[3]) / 2
+                    left_avg = (norm[0] + norm[2]) / 2
+                    right_avg = (norm[1] + norm[3]) / 2
+
+                    print(f"[PUSH] Direction analysis: front={front_avg:.2f}, back={back_avg:.2f}, left={left_avg:.2f}, right={right_avg:.2f}")
+
+                    # 找到最安全的方向（灰度值最小）
+                    directions = {
+                        'front': front_avg,
+                        'back': back_avg,
+                        'left': left_avg,
+                        'right': right_avg
+                    }
+                    safest_direction = min(directions, key=directions.get)
+                    print(f"[PUSH] Safest direction: {safest_direction}")
+
+                    # 根据最安全方向转向
+                    if safest_direction == 'back':
+                        # 后方最安全，转180度
+                        print("[PUSH] Turning 180° towards back (safest)")
+                        robot.set_speed(500, -500)
+                        time.sleep(0.6)
+                    elif safest_direction == 'left':
+                        # 左侧最安全，左转90度
+                        print("[PUSH] Turning left 90° (safest)")
+                        robot.set_speed(-500, 500)
+                        time.sleep(0.3)
+                    elif safest_direction == 'right':
+                        # 右侧最安全，右转90度
+                        print("[PUSH] Turning right 90° (safest)")
+                        robot.set_speed(500, -500)
+                        time.sleep(0.3)
                     else:
-                        print(f"[PUSH] Turning left to recover target (last cx={last_known_cx:.3f})")
-                        robot.set_speed(-turn_speed, turn_speed)
+                        # 前方最安全，不转向
+                        print("[PUSH] Front is safest, no turn needed")
 
-                    time.sleep(turn_time)
                     robot.set_speed(0, 0)
                     time.sleep(0.1)
 
-                    # 检查是否找回目标
-                    recovery_tag = vision.get()
-                    if recovery_tag and recovery_tag["id"] in target_ids:
-                        print("[PUSH] Target recovered! Continuing push...")
-                        lost_start_time = None
-                        continue
+                    # 4. 转向后继续后退到安全区域
+                    print("[PUSH] Retreating to safe zone after reorientation...")
+                    while True:
+                        try:
+                            norm, _ = read_gray(robot)
+                        except Exception as e:
+                            print(f"ERROR: read_gray failed: {e}")
+                            break
 
-                # 恢复失败，退出推块模式进入巡台
-                print("[PUSH] Recovery failed, exiting push mode to patrol")
+                        max_danger = max(norm)
+                        if max_danger < PATROL_SAFE_ZONE_THRESHOLD:
+                            print(f"[PUSH] Reached safe zone (danger={max_danger:.2f})")
+                            break
+
+                        robot.set_speed(-500, -500)
+                        time.sleep(0.1)
+
+                    robot.set_speed(0, 0)
+                    time.sleep(0.1)
+
+                # 5. 检查是否找回目标
+                recovery_tag = vision.get()
+                if recovery_tag and recovery_tag["id"] in target_ids:
+                    print("[PUSH] Target recovered! Continuing push...")
+                    lost_start_time = None
+                    continue
+
+                # 恢复失败，确保在安全区域后退出推块模式
+                print("[PUSH] Recovery failed, ensuring safe zone before exiting...")
+                try:
+                    norm, _ = read_gray(robot)
+                    max_danger = max(norm)
+                    if max_danger >= PATROL_SAFE_ZONE_THRESHOLD:
+                        print(f"[PUSH] Still not safe (danger={max_danger:.2f}), final retreat...")
+                        robot.set_speed(-600, -600)
+                        time.sleep(0.3)
+                except Exception:
+                    pass
+
                 robot.set_speed(0, 0)
+                print("[PUSH] Exiting push mode to patrol")
                 return
 
             # 丢失时间未超过容忍时间，继续前进寻找
@@ -202,8 +273,27 @@ def push_block(robot, vision, read_gray, read_photo):
             time.sleep(0.05)
 
             # 后退到安全区域
-            robot.set_speed(-PUSH_SUCCESS_RETREAT_SPEED, -PUSH_SUCCESS_RETREAT_SPEED)
-            time.sleep(PUSH_SUCCESS_RETREAT_TIME)
+            print("[PUSH] Retreating to safe zone...")
+            while True:
+                try:
+                    norm, _ = read_gray(robot)
+                except Exception as e:
+                    print(f"ERROR: read_gray failed during retreat: {e}")
+                    break
+
+                max_danger = max(norm)
+
+                # 已到达安全区域（危险值 < PATROL_SAFE_ZONE_THRESHOLD）
+                if max_danger < PATROL_SAFE_ZONE_THRESHOLD:
+                    print(f"[PUSH] Reached safe zone (danger={max_danger:.2f})")
+                    break
+
+                # 继续后退
+                robot.set_speed(-PUSH_SUCCESS_RETREAT_SPEED, -PUSH_SUCCESS_RETREAT_SPEED)
+                time.sleep(0.1)
+
+            robot.set_speed(0, 0)
+            time.sleep(0.1)
 
             # 回正
             robot.set_speed(PUSH_SUCCESS_TURN_SPEED, -PUSH_SUCCESS_TURN_SPEED)

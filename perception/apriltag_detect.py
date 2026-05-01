@@ -5,7 +5,7 @@ import time
 
 
 class ApriltagDetect:
-    def __init__(self, tag_size=0.05, camera_matrix=None, dist_coeffs=None, steering_kp=1.0):
+    def __init__(self, tag_size=0.12, camera_matrix=None, dist_coeffs=None, steering_kp=1.0):
         # minimal state so Vision can query latest detection
         self.target = None
         self.at_detector = apriltag.Detector(apriltag.DetectorOptions(families='tag36h11 tag25h9'))
@@ -100,18 +100,7 @@ class ApriltagDetect:
             if success:
                 # tvec[2] 是 Z 轴距离（深度，单位：米）
                 distance_m = float(tvec[2][0])
-                if distance_m <= 0:
-                    return None
-
-                # 转换为厘米
-                distance_cm = distance_m * 100
-
-                # 应用二次修正公式（基于实测数据拟合）
-                # actual = 0.00193306 * measured^2 - 0.150338 * measured + 21.696072
-                corrected_cm = 0.00193306 * distance_cm**2 - 0.150338 * distance_cm + 21.696072
-
-                # 转换回米
-                return corrected_cm / 100.0
+                return distance_m if distance_m > 0 else None
             else:
                 return None
 

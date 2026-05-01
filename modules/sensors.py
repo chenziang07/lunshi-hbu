@@ -38,3 +38,14 @@ def read_gray(robot):
 def read_photo(robot):
     io = robot.read_io()
     return io[PHOTO_LEFT_IO], io[PHOTO_RIGHT_IO]
+
+def read_photoelectric_edge(robot):
+    """读取四个角的光电传感器，检测台边
+    返回: (left_front, right_front, left_back, right_back)
+    0 = 有台面遮挡（正常）
+    1 = 无遮挡（接近台边或悬空）
+    """
+    from config import PHOTOELECTRIC_LF_IO, PHOTOELECTRIC_RF_IO, PHOTOELECTRIC_LB_IO, PHOTOELECTRIC_RB_IO
+    io = robot.read_io()
+    return (io[PHOTOELECTRIC_LF_IO], io[PHOTOELECTRIC_RF_IO],
+            io[PHOTOELECTRIC_LB_IO], io[PHOTOELECTRIC_RB_IO])

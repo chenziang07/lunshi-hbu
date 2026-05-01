@@ -23,6 +23,7 @@ from config import (
     MOTOR_LEFT_SIGN,
     MOTOR_RIGHT_SIGN,
     DEBUG,
+    PATROL_SAFE_ZONE_THRESHOLD,
 )
 
 
@@ -181,6 +182,25 @@ def main():
 
             tag = vision.get()
             target = select_target(tag)
+
+            # ===== 检查是否可以进入巡台模式 =====
+            if mode == MODE_PATROL:
+                try:
+                    norm, _ = read_gray(robot)
+                    max_danger = max(norm)
+
+                    # 危险值 >= PATROL_SAFE_ZONE_THRESHOLD，不能进入巡台，先后退到安全区域
+                    if max_danger >= PATROL_SAFE_ZONE_THRESHOLD:
+                        if DEBUG:
+                            print(f"[MAIN] Danger too high ({max_danger:.2f}), retreating to safe zone before patrol")
+                        robot.set_speed(-700, -700)
+                        time.sleep(0.2)
+                        continue
+                except Exception as e:
+                    print(f"ERROR: read_gray failed in main loop: {e}")
+                    robot.set_speed(0, 0)
+                    time.sleep(0.1)
+                    continue
 
             # ===== 防抖逻辑 =====
             if target == -2:  # 需要避让的ID=2

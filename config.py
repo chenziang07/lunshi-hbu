@@ -31,13 +31,26 @@ PATROL_SPEED = 433       # 巡台前进速度
 PATROL_RETREAT_SPEED = 700  # 巡台后退速度
 PATROL_TURN_SPEED = 500     # 巡台转向速度
 PATROL_TURN_DURATION = 0.2  # 转向持续时间（秒）
-PATROL_CENTER_THRESHOLD = 0.35  # 中心安全阈值
+PATROL_CENTER_THRESHOLD = 0.3  # 中心安全阈值（进入巡台前提条件）
+PATROL_SAFE_ZONE_THRESHOLD = 0.3  # 安全区域阈值（推块后返回、丢失目标恢复时使用）
 PATROL_EMERGENCY_THRESHOLD = 1.0  # 紧急后退阈值（四个灰度都达到此值）
 PATROL_EMERGENCY_RETREAT_SPEED = 800  # 紧急后退速度
 PATROL_EMERGENCY_RETREAT_TIME = 0.3   # 紧急后退时间（秒）
 PATROL_EDGE_HIGH_THRESHOLD = 0.85  # 高边缘阈值（特殊处理）
 STEER_GAIN = 200          # 越大转向越猛
 ACC_STEP = 80             # 越大越激进
+
+# 同心圆巡台参数
+PATROL_CIRCLE_SMALL_RADIUS = 0.2   # 小圆半径（危险值约0.2）
+PATROL_CIRCLE_MEDIUM_RADIUS = 0.3  # 中圆半径（危险值约0.3）
+PATROL_CIRCLE_LARGE_RADIUS = 0.4   # 大圆半径（危险值约0.35-0.4）
+PATROL_CIRCLE_SMALL_LAPS = 2       # 小圆圈数
+PATROL_CIRCLE_MEDIUM_LAPS = 2      # 中圆圈数
+PATROL_CIRCLE_LARGE_LAPS = 1       # 大圆圈数
+
+# 灰度梯度检测参数
+PATROL_GRADIENT_THRESHOLD = 0.3    # 灰度变化率阈值（单帧变化超过此值触发警告）
+PATROL_GRADIENT_HISTORY = 5        # 保存最近N帧的灰度值用于计算梯度
 
 
 # ==================== 推块核心 ====================
@@ -112,6 +125,18 @@ PHOTO_RIGHT_IO = 4
 # 电平定义（你当前假设）
 PHOTO_BLOCK_VALUE = 0   # 有东西
 PHOTO_EMPTY_VALUE = 1   # 悬空
+
+
+# ==================== 光电传感器（四角防掉台） ====================
+
+PHOTOELECTRIC_LF_IO = 0  # 左前
+PHOTOELECTRIC_RF_IO = 1  # 右前
+PHOTOELECTRIC_LB_IO = 2  # 左后
+PHOTOELECTRIC_RB_IO = 3  # 右后
+
+# 电平定义
+PHOTOELECTRIC_BLOCKED = 0  # 有台面遮挡（正常）
+PHOTOELECTRIC_EMPTY = 1    # 无遮挡（接近台边）
 
 
 # ==================== 推出判定策略 ====================
