@@ -115,11 +115,11 @@ def judge_direction(norm):
 
     max_val = max(norm)
     if max_val > 0.75:
-        danger = "【紧急】已压边界"
+        danger = f"【紧急】已压边界 (max={max_val:.3f})"
     elif max_val > 0.5:
-        danger = "接近边界"
+        danger = f"接近边界 (max={max_val:.3f})"
     else:
-        danger = "安全"
+        danger = f"安全 (max={max_val:.3f})"
     return f"{direction} | {danger}"
 
 # ==================== 主程序 ====================

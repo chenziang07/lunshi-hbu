@@ -26,7 +26,16 @@ MOTOR_LEFT_SIGN = 1
 MOTOR_RIGHT_SIGN = 1
 
 # ==================== 巡台 ====================
-DANGER_THRESHOLD = 0.4   # 越小越保守
+DANGER_THRESHOLD = 0.4   # 边缘检测阈值，越小越保守
+PATROL_SPEED = 433       # 巡台前进速度
+PATROL_RETREAT_SPEED = 700  # 巡台后退速度
+PATROL_TURN_SPEED = 500     # 巡台转向速度
+PATROL_TURN_DURATION = 0.2  # 转向持续时间（秒）
+PATROL_CENTER_THRESHOLD = 0.35  # 中心安全阈值
+PATROL_EMERGENCY_THRESHOLD = 1.0  # 紧急后退阈值（四个灰度都达到此值）
+PATROL_EMERGENCY_RETREAT_SPEED = 800  # 紧急后退速度
+PATROL_EMERGENCY_RETREAT_TIME = 0.3   # 紧急后退时间（秒）
+PATROL_EDGE_HIGH_THRESHOLD = 0.85  # 高边缘阈值（特殊处理）
 STEER_GAIN = 200          # 越大转向越猛
 ACC_STEP = 80             # 越大越激进
 
@@ -44,6 +53,39 @@ RAMP_STEP = 80
 
 # 最低推进速度（电机最少需要400才能转动）
 MIN_SPEED = 400
+
+# 推块时的对齐误差阈值（画面中心偏移容忍度）
+PUSH_ALIGN_THRESHOLD = 0.05  # 越小要求越精确
+
+# 推块前对齐超时时间（秒）
+PUSH_ALIGN_TIMEOUT = 3.0
+
+# 推块时各距离段的速度
+PUSH_SPEED_VERY_CLOSE = 500  # dist < 0.03m 极近距离
+PUSH_SPEED_CLOSE = 700       # dist < 0.08m 近距离
+PUSH_SPEED_MEDIUM = 800      # dist < 0.16m 中距离
+
+# 推块时各距离段的转向增益倍数
+PUSH_TURN_GAIN_CLOSE = 200   # dist < 0.08m 近距离转向力度
+PUSH_TURN_GAIN_MEDIUM = 300  # dist < 0.16m 中距离转向力度
+PUSH_TURN_GAIN_FAR = 400     # dist >= 0.16m 远距离转向力度
+
+# 推块前对齐时的转向增益倍数
+PUSH_ALIGN_TURN_GAIN = 500
+
+# 推块时灰度减速参数
+PUSH_GRAY_SLOWDOWN_THRESHOLD = 0.6  # 前两个灰度超过此值开始减速
+PUSH_GRAY_MIN_SPEED = 500           # 灰度减速时的最低速度
+
+# 推块丢失目标时的速度
+PUSH_LOST_SPEED_TOLERANT = 400  # 刚丢失时的速度
+PUSH_LOST_SPEED_CONTINUE = 500  # 丢失超过容忍次数后的速度
+
+# 推块成功后的后退参数
+PUSH_SUCCESS_RETREAT_SPEED = 800  # 后退速度
+PUSH_SUCCESS_RETREAT_TIME = 0.5   # 后退时间（秒）
+PUSH_SUCCESS_TURN_SPEED = 500     # 回正转向速度
+PUSH_SUCCESS_TURN_TIME = 0.2      # 回正转向时间（秒）
 
 
 # ==================== 灰度 ====================
@@ -86,8 +128,9 @@ PUSH_CONFIRM_DELAY = 0.05
 
 # ==================== 目标锁定 ====================
 
-LOST_TOLERANCE = 5
-PUSH_TIMEOUT = 3.0
+LOST_TOLERANCE = 3.0  # 目标丢失容忍时间（秒），超过此时间尝试恢复
+LOST_RETREAT_TIME = 0.5  # 丢失目标后后退时间（秒）
+LOST_RETREAT_SPEED = 600  # 丢失目标后后退速度
 
 
 # ==================== 台下块检测 ====================

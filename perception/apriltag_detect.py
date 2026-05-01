@@ -69,6 +69,9 @@ class ApriltagDetect:
             "distance": float(distance_m)
         }
 
+        # 输出水平偏移量
+        print(f"[AprilTag] ID={tag.tag_id}, 水平偏移量: {norm_cx:.3f}, 距离: {distance_m:.2f}m")
+
     def _calculate_distance_pnp(self, tag):
         """使用 PnP 算法计算 AprilTag 到相机的距离（米）"""
         try:
@@ -106,9 +109,6 @@ class ApriltagDetect:
                 # 应用二次修正公式（基于实测数据拟合）
                 # actual = 0.00193306 * measured^2 - 0.150338 * measured + 21.696072
                 corrected_cm = 0.00193306 * distance_cm**2 - 0.150338 * distance_cm + 21.696072
-
-                # 调试输出
-                print(f"[PnP] Raw: {distance_cm:.1f}cm -> Corrected: {corrected_cm:.1f}cm")
 
                 # 转换回米
                 return corrected_cm / 100.0

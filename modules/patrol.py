@@ -2,7 +2,19 @@
 
 import time
 
-from config import DEBUG
+from config import (
+    DEBUG,
+    DANGER_THRESHOLD,
+    PATROL_SPEED,
+    PATROL_RETREAT_SPEED,
+    PATROL_TURN_SPEED,
+    PATROL_TURN_DURATION,
+    PATROL_CENTER_THRESHOLD,
+    PATROL_EMERGENCY_THRESHOLD,
+    PATROL_EMERGENCY_RETREAT_SPEED,
+    PATROL_EMERGENCY_RETREAT_TIME,
+    PATROL_EDGE_HIGH_THRESHOLD
+)
 from modules.sensors import read_gray
 
 
@@ -18,15 +30,11 @@ class Patrol:
         self.turn_start = 0
         self.forward_start = 0  # 记录前进开始时间
 
-        self.turn_duration = 0.2  # 转向时间（缩短以减小巡台范围）
-        self.forward_duration = 0.25  # 前进时间（缩短以便更频繁扫描）
-        self.center_threshold = 0.35
         self.last_left = 0
         self.last_right = 0
         self.last_print = 0
 
         self.current_speed = 0
-        self.target_speed = 700  # 提高巡台速度，更快找到块
 
     def smooth(self, left, right):
         left = int(0.7 * self.last_left + 0.3 * left)
@@ -36,7 +44,7 @@ class Patrol:
         return left, right
 
     def is_center_safe(self, norm):
-        return all(v < self.center_threshold for v in norm)
+        return all(v < PATROL_CENTER_THRESHOLD for v in norm)
 
     def ramp_speed(self, target):
         from config import ACC_STEP
@@ -64,7 +72,18 @@ class Patrol:
 
         max_val = max(norm)
 
-        if all(v > 0.85 for v in norm):
+        # 四个灰度都等于1时，紧急后退至安全区域
+        if all(v >= PATROL_EMERGENCY_THRESHOLD for v in norm):
+            print("[PATROL] All sensors at edge (all>=1.0), emergency retreat!")
+            self.robot.set_speed(-PATROL_EMERGENCY_RETREAT_SPEED, -PATROL_EMERGENCY_RETREAT_SPEED)
+            time.sleep(PATROL_EMERGENCY_RETREAT_TIME)
+            self.robot.set_speed(0, 0)
+            self.state = self.STATE_TURN
+            self.turn_start = time.time()
+            self.current_speed = 0
+            return
+
+        if all(v > PATROL_EDGE_HIGH_THRESHOLD for v in norm):
             front_avg = (norm[0] + norm[1]) / 2
             left = 800 if front_avg < 0.5 else 400
             right = 800 if front_avg < 0.5 else -400
@@ -74,18 +93,18 @@ class Patrol:
             return
 
         if self.state == self.STATE_FORWARD:
-            speed = self.ramp_speed(self.target_speed)
+            speed = self.ramp_speed(PATROL_SPEED)
             left = speed
             right = speed
 
-            # 检测到边缘时后退
-            if max_val > 0.5:
+            # 检测到边缘时后退（使用config中的DANGER_THRESHOLD）
+            if max_val > DANGER_THRESHOLD:
                 self.state = self.STATE_RETREAT
                 self.current_speed = 0
 
         elif self.state == self.STATE_RETREAT:
-            left = -700
-            right = -700
+            left = -PATROL_RETREAT_SPEED
+            right = -PATROL_RETREAT_SPEED
             self.current_speed = 0
             if self.is_center_safe(norm):
                 self.state = self.STATE_TURN
@@ -93,9 +112,9 @@ class Patrol:
 
         else:  # STATE_TURN
             # 转向时保持低速前进，缩小转向幅度以减小巡台范围
-            left = 500   # 提高左轮速度，减小转向半径
-            right = -500  # 提高右轮速度，减小转向半径
-            if time.time() - self.turn_start > self.turn_duration:
+            left = PATROL_TURN_SPEED
+            right = -PATROL_TURN_SPEED
+            if time.time() - self.turn_start > PATROL_TURN_DURATION:
                 self.state = self.STATE_FORWARD
                 self.forward_start = time.time()  # 记录前进开始时间
 
