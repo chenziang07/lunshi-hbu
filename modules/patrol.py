@@ -18,15 +18,15 @@ class Patrol:
         self.turn_start = 0
         self.forward_start = 0  # 记录前进开始时间
 
-        self.turn_duration = 0.1  # 转向时间
-        self.forward_duration = 0.3  # 转向后前进时间（保守策略）
+        self.turn_duration = 0.2  # 转向时间（缩短以减小巡台范围）
+        self.forward_duration = 0.25  # 前进时间（缩短以便更频繁扫描）
         self.center_threshold = 0.35
         self.last_left = 0
         self.last_right = 0
         self.last_print = 0
 
         self.current_speed = 0
-        self.target_speed = 600
+        self.target_speed = 700  # 提高巡台速度，更快找到块
 
     def smooth(self, left, right):
         left = int(0.7 * self.last_left + 0.3 * left)
@@ -82,11 +82,6 @@ class Patrol:
             if max_val > 0.5:
                 self.state = self.STATE_RETREAT
                 self.current_speed = 0
-            # 保守策略：前进一小段时间后停下来，给视觉系统检测机会
-            elif time.time() - self.forward_start > self.forward_duration:
-                left = 0
-                right = 0
-                self.current_speed = 0
 
         elif self.state == self.STATE_RETREAT:
             left = -700
@@ -97,9 +92,9 @@ class Patrol:
                 self.turn_start = time.time()
 
         else:  # STATE_TURN
-            left = 500
-            right = -500
-            self.current_speed = 0
+            # 转向时保持低速前进，缩小转向幅度以减小巡台范围
+            left = 500   # 提高左轮速度，减小转向半径
+            right = -500  # 提高右轮速度，减小转向半径
             if time.time() - self.turn_start > self.turn_duration:
                 self.state = self.STATE_FORWARD
                 self.forward_start = time.time()  # 记录前进开始时间

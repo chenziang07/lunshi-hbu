@@ -5,13 +5,16 @@ import time
 
 
 class ApriltagDetect:
-    def __init__(self, tag_size=0.05, camera_matrix=None, dist_coeffs=None):
+    def __init__(self, tag_size=0.05, camera_matrix=None, dist_coeffs=None, steering_kp=1.0):
         # minimal state so Vision can query latest detection
         self.target = None
         self.at_detector = apriltag.Detector(apriltag.DetectorOptions(families='tag36h11 tag25h9'))
 
         # AprilTag 实际尺寸（米）
         self.tag_size = tag_size
+
+        # 转向控制参数
+        self.steering_kp = steering_kp  # 比例系数
 
         # 相机内参矩阵
         if camera_matrix is None:
@@ -70,12 +73,13 @@ class ApriltagDetect:
         """使用 PnP 算法计算 AprilTag 到相机的距离（米）"""
         try:
             # AprilTag 的 3D 坐标（以 tag 中心为原点）
+            # AprilTag 角点顺序：0=左下, 1=右下, 2=右上, 3=左上
             half_size = self.tag_size / 2.0
             object_points = np.array([
-                [-half_size, -half_size, 0],  # 左上
-                [ half_size, -half_size, 0],  # 右上
-                [ half_size,  half_size, 0],  # 右下
-                [-half_size,  half_size, 0]   # 左下
+                [-half_size,  half_size, 0],  # 左下 (角点0)
+                [ half_size,  half_size, 0],  # 右下 (角点1)
+                [ half_size, -half_size, 0],  # 右上 (角点2)
+                [-half_size, -half_size, 0]   # 左上 (角点3)
             ], dtype=np.float32)
 
             # AprilTag 检测到的 2D 角点
@@ -91,9 +95,23 @@ class ApriltagDetect:
             )
 
             if success:
-                # tvec[2] 是 Z 轴距离（深度）
-                distance = float(tvec[2][0])
-                return distance if distance > 0 else None
+                # tvec[2] 是 Z 轴距离（深度，单位：米）
+                distance_m = float(tvec[2][0])
+                if distance_m <= 0:
+                    return None
+
+                # 转换为厘米
+                distance_cm = distance_m * 100
+
+                # 应用二次修正公式（基于实测数据拟合）
+                # actual = 0.00193306 * measured^2 - 0.150338 * measured + 21.696072
+                corrected_cm = 0.00193306 * distance_cm**2 - 0.150338 * distance_cm + 21.696072
+
+                # 调试输出
+                print(f"[PnP] Raw: {distance_cm:.1f}cm -> Corrected: {corrected_cm:.1f}cm")
+
+                # 转换回米
+                return corrected_cm / 100.0
             else:
                 return None
 
@@ -103,6 +121,31 @@ class ApriltagDetect:
 
     def get_target_info(self):
         return self.target
+
+    def calculate_steering_adjustment(self):
+        """
+        根据摄像头画面中的水平偏移量计算转向调整量
+
+        返回:
+            float: 转向调整量，范围 [-1, 1]
+                   正值表示需要右转，负值表示需要左转
+                   None 表示未检测到目标
+        """
+        if self.target is None:
+            return None
+
+        # cx 范围是 [-1, 1]，负值表示目标在左侧，正值表示在右侧
+        # 需要向相反方向转向来对准目标
+        cx = self.target["cx"]
+
+        # 简单比例控制：steering = -kp * error
+        # 负号是因为目标在右侧(cx>0)时需要右转(正转向值)
+        steering = -self.steering_kp * cx
+
+        # 限制输出范围在 [-1, 1]
+        steering = max(-1.0, min(1.0, steering))
+
+        return float(steering)
 
 if __name__ == '__main__':
     cap = cv2.VideoCapture(0)

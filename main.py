@@ -103,8 +103,31 @@ def select_target(tag):
         return 1
     elif tid == 2 and PUSH_ID_2:
         return 2
+    elif tid == 2 and not PUSH_ID_2:
+        return -2  # 特殊标记：需要避让的ID=2
 
     return None
+
+
+def avoid_obstacle(robot):
+    """避让障碍物（ID=2）"""
+    print("[AVOID] Detected ID=2, retreating and avoiding...")
+
+    # 后退
+    robot.set_speed(-700, -700)
+    time.sleep(0.5)
+
+    # 停顿
+    robot.set_speed(0, 0)
+    time.sleep(0.1)
+
+    # 转向避让（右转）
+    robot.set_speed(500, -500)
+    time.sleep(0.4)
+
+    # 停止
+    robot.set_speed(0, 0)
+    print("[AVOID] Avoidance complete, resuming patrol")
 
 
 def main():
@@ -135,19 +158,23 @@ def main():
     try:
         load_gray()
 
-        vision = Vision()
+        vision = Vision(robot=robot)
         vision.start()
 
         patrol = Patrol(robot)
 
         MODE_PATROL = 0
         MODE_PUSH = 1
+        MODE_AVOID = 2
 
         mode = MODE_PATROL
 
         # ===== 防抖计数 =====
         lock_count = 0
         target_id = None
+
+        # ===== 避让计数（避免重复避让同一个障碍）=====
+        avoided_ids = set()  # 记录已避让过的ID=2
 
         # ===== 主循环 =====
         while True:
@@ -156,14 +183,23 @@ def main():
             target = select_target(tag)
 
             # ===== 防抖逻辑 =====
-            if target is not None:
+            if target == -2:  # 需要避让的ID=2
+                # 检查是否已经避让过这个位置的ID=2
+                if -2 not in avoided_ids:
+                    lock_count += 1
+                else:
+                    lock_count = 0
+            elif target is not None:
                 lock_count += 1
             else:
                 lock_count = 0
 
             # ===== 模式切换 =====
             if lock_count >= LOCK_FRAMES:
-                mode = MODE_PUSH
+                if target == -2:
+                    mode = MODE_AVOID
+                else:
+                    mode = MODE_PUSH
                 target_id = target
             else:
                 mode = MODE_PATROL
@@ -174,6 +210,14 @@ def main():
 
             elif mode == MODE_PUSH:
                 push_block(robot, vision, read_gray, read_photo)
+                print(f"[MAIN] Block ID {target_id} push attempt completed")
+                lock_count = 0
+                mode = MODE_PATROL
+
+            elif mode == MODE_AVOID:
+                avoid_obstacle(robot)
+                avoided_ids.add(-2)  # 记录已避让
+                print(f"[MAIN] Obstacle avoided, total avoided: {len(avoided_ids)}")
                 lock_count = 0
                 mode = MODE_PATROL
 

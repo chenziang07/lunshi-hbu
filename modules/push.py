@@ -23,6 +23,41 @@ def push_block(robot, vision, read_gray, read_photo):
             return min(c + RAMP_STEP, t)
         return max(c - RAMP_STEP, t)
 
+    # ================= 推块前方向修正 =================
+    print("[PUSH] Aligning direction before pushing...")
+    align_start = time.time()
+    aligned = False
+
+    while time.time() - align_start < 3.0:  # 最多修正3秒
+        tag = vision.get()
+
+        if tag and tag["id"] in target_ids:
+            err = tag["cx"]
+
+            # 方向已对齐（误差小于阈值）
+            if abs(err) < 0.05:
+                aligned = True
+                robot.set_speed(0, 0)
+                print(f"[PUSH] Direction aligned (error: {err:.3f}), ready to push")
+                time.sleep(0.1)
+                break
+
+            # 原地转向修正
+            turn_speed = int(KP_ANGLE * err * 500)
+            robot.set_speed(-turn_speed, turn_speed)
+            time.sleep(0.01)
+        else:
+            # 未检测到目标，停止修正
+            robot.set_speed(0, 0)
+            break
+
+    robot.set_speed(0, 0)
+
+    if not aligned:
+        print("[PUSH] Warning: Direction alignment incomplete, proceeding anyway")
+
+    time.sleep(0.1)  # 稳定后再开始推进
+
     while True:
 
         # ⏱ 超时保护
@@ -44,19 +79,25 @@ def push_block(robot, vision, read_gray, read_photo):
                 print(f"[PUSH] Tag ID: {tag['id']}, Distance: {dist:.3f}m, Center X: {err:.3f}")
                 last_print_time = time.time()
 
-            # 距离速度映射（降低速度，避免冲太快）
-            if dist < 0.15:
+            # 距离速度映射（根据摄像头偏差修正：0.22m实际识别为0.12m）
+            # 原阈值 * (0.12/0.22) ≈ 原阈值 * 0.55
+            if dist < 0.03:  # 实际约5cm，极近距离，降低速度避免冲太快
+                base = 500  # 极近距离慢速推进
+            elif dist < 0.08:  # 实际约0.15m
                 base = 700  # 近距离保持推进
-            elif dist < 0.30:
+            elif dist < 0.16:  # 实际约0.30m
                 base = 800  # 中距离加速推进
             else:
                 base = max(400, min(900, int(KP_DIST * dist * 100)))
 
-            # 只在距离较远时进行转向对准，近距离直接推进
-            if dist > 0.25:
-                turn = KP_ANGLE * err * 400
+            # 全程进行方向修正，确保块在画面中心
+            # 近距离时降低转向增益，避免过度摆动
+            if dist < 0.08:  # 实际约0.15m
+                turn = KP_ANGLE * err * 200  # 近距离降低转向力度
+            elif dist < 0.16:  # 实际约0.30m
+                turn = KP_ANGLE * err * 300  # 中距离适中转向
             else:
-                turn = 0  # 近距离不转向，直接推进
+                turn = KP_ANGLE * err * 400  # 远距离正常转向
 
         else:
             lost_count += 1
@@ -87,12 +128,13 @@ def push_block(robot, vision, read_gray, read_photo):
         if max(norm) > 0.7:
             base = min(base, 400)
 
-        # 极限保护（防自杀）- 这是唯一允许退出的灰度情况
-        if max(norm) > 0.85:
+        # 极限保护（防自杀）- 提高阈值，只在真正危险时才退出
+        # 推块过程中灰度会升高，但只要光电未触发就应该继续推
+        if max(norm) > 0.95:
             robot.set_speed(-800, -800)
             time.sleep(0.25)
             robot.set_speed(0, 0)
-            print("WARN: Edge detected, emergency retreat from push mode")
+            print("WARN: Extreme edge detected, emergency retreat from push mode")
             break
 
         # ================= 电机输出 =================
@@ -104,41 +146,32 @@ def push_block(robot, vision, read_gray, read_photo):
 
         robot.set_speed(cl, cr)
 
-        # ================= 推出判定 =================
+        # ================= 推出判定（光电+灰度双重确认）=================
         l, r = read_photo(robot)
 
-        # 推出判定需要同时满足两个条件：
-        # 1. 光电传感器：两个都变成1（铲子悬空，方块推下去了）
-        # 2. 灰度传感器：检测到台边（灰度值变高，方块推到边缘了）
-        photo_pushed = (l == 1 and r == 1) and (l0 == 0 or r0 == 0)
-        gray_edge = max(norm) > 0.7  # 灰度检测到台边
+        # 检测光电数值：至少一个变成1（铲子开始悬空，方块推下去了）
+        # 同时灰度必须在0.92以上（确实到了台边）
+        photo_pushed = (l == 1 or r == 1) and (l0 == 0 or r0 == 0)
+        gray_edge = max(norm) > 0.92  # 提高灰度阈值，确保真的推到位了
 
         if photo_pushed and gray_edge:
-            time.sleep(PUSH_CONFIRM_DELAY)
+            print(f"[PUSH] Photo sensor triggered (L={l}, R={r}), gray={max(norm):.2f}, retreating to safe zone")
 
-            l2, r2 = read_photo(robot)
-            norm2, _ = read_gray(robot)
+            # 立即停止
+            robot.set_speed(0, 0)
+            time.sleep(0.05)
 
-            # 二次确认：光电都还是1，并且灰度还是高
-            if l2 == 1 and r2 == 1 and max(norm2) > 0.7:
+            # 后退到安全区域
+            robot.set_speed(-800, -800)
+            time.sleep(0.5)
 
-                # ================= 收尾 =================
+            # 回正
+            robot.set_speed(500, -500)
+            time.sleep(0.2)
 
-                # 冲一下（确保掉）
-                robot.set_speed(400, 400)
-                time.sleep(0.1)
-
-                # 后退脱离，回到台中心
-                robot.set_speed(-800, -800)
-                time.sleep(0.5)
-
-                # 回正
-                robot.set_speed(500, -500)
-                time.sleep(0.2)
-
-                robot.set_speed(0, 0)
-                print("[PUSH] Block pushed successfully (photo + gray confirmed), returning to patrol")
-                return  # 退出push函数，继续巡台
+            robot.set_speed(0, 0)
+            print("[PUSH] Block pushed successfully, returned to safe zone")
+            return  # 退出push函数，继续巡台
 
         time.sleep(0.01)
 

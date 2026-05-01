@@ -11,10 +11,13 @@ CAMERA_HEIGHT = 240  # 树莓派建议 240，性能好的设备可用 480
 APRILTAG_SIZE = 0.12  # 12cm
 
 # 相机内参（根据实际相机标定结果修改）
-CAMERA_FX = 320.0  # 焦距 x
-CAMERA_FY = 320.0  # 焦距 y
-CAMERA_CX = 160.0  # 光心 x (320/2)
-CAMERA_CY = 120.0  # 光心 y (240/2)
+CAMERA_FX = 463.38  # 焦距 x
+CAMERA_FY = 461.28  # 焦距 y
+CAMERA_CX = 329.90  # 光心 x
+CAMERA_CY = 236.95  # 光心 y
+
+# 畸变系数（根据相机标定结果）
+CAMERA_DIST_COEFFS = [-0.00991687, 0.09554795, -0.01163809, 0.00175394, -0.10636701]
 
 # ==================== 电机方向 ====================
 MOTOR_LEFT_ID = 1
@@ -23,7 +26,7 @@ MOTOR_LEFT_SIGN = 1
 MOTOR_RIGHT_SIGN = 1
 
 # ==================== 巡台 ====================
-DANGER_THRESHOLD = 0.65   # 越小越保守
+DANGER_THRESHOLD = 0.4   # 越小越保守
 STEER_GAIN = 200          # 越大转向越猛
 ACC_STEP = 80             # 越大越激进
 
@@ -31,7 +34,7 @@ ACC_STEP = 80             # 越大越激进
 # ==================== 推块核心 ====================
 
 # 转向强度（对准目标）
-KP_ANGLE = 0.8
+KP_ANGLE = 0.9
 
 # 前进速度（根据距离）
 KP_DIST = 20
@@ -85,3 +88,22 @@ PUSH_CONFIRM_DELAY = 0.05
 
 LOST_TOLERANCE = 5
 PUSH_TIMEOUT = 3.0
+
+
+# ==================== 台下块检测 ====================
+
+# 启用台下块检测
+DETECT_FALLEN_BLOCK = True
+
+# 灰度阈值（左前和右前都要大于此值）
+FALLEN_GRAY_THRESHOLD = 0.98
+
+# 测距传感器阈值（ADC3 小于此值表示检测到台下物体）
+FALLEN_DISTANCE_THRESHOLD = 600
+
+# 灰度传感器索引（左前、右前）
+FALLEN_GRAY_LEFT_FRONT = 0   # 对应 GRAY_CHANNELS[0]
+FALLEN_GRAY_RIGHT_FRONT = 1  # 对应 GRAY_CHANNELS[1]
+
+# 测距传感器通道
+FALLEN_DISTANCE_CHANNEL = 3  # ADC3
